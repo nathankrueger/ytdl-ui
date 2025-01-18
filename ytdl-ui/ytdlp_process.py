@@ -5,7 +5,7 @@ from time import sleep
 from dataclasses import dataclass
 from typing import override
 
-from util import dbg_print, not_blank
+from util import dbg_print, not_blank, ensure_directory
 
 def run_command(command: list) -> tuple[bool, str]:
     process = Popen(command, stdout=PIPE, stderr=PIPE, text=True)
@@ -83,17 +83,16 @@ class YtDlpProcess:
         if format is None:
             # default is to choose best mp4, otherwise best video available
             #   (see: https://man.archlinux.org/man/extra/yt-dlp/yt-dlp.1.en)
-            vid_fmt = "b[ext=mp4]/b"
+            vid_fmt = "bestvideo*+bestaudio/best"
         else:
             vid_fmt = format
 
         # create the yt-dlp process
         with self.proc_lock:
-            output_args = []
             ytdlp_args = ['yt-dlp', self.url, '-R', str(YtDlpProcess.MAX_RETRIES), '-f', vid_fmt] 
             if not_blank(self.output_folder):
-                output_args = ['-o', f'{self.output_folder}/%(title)s.%(ext)s']
-                ytdlp_args += output_args
+                ensure_directory(self.output_folder)
+                ytdlp_args += ['-o', f'{self.output_folder}/%(title)s.%(ext)s']
 
             dbg_print(" ".join(ytdlp_args))
             self.process = Popen(args=ytdlp_args, stdout=PIPE, stderr=PIPE, text=True)
@@ -179,7 +178,7 @@ class YtDlpProcess:
 
 
 if __name__ == '__main__':
-    ytdlp_proc = YtDlpProcess("https://www.youtube.com/watch?v=6uMNnZtIS6s", "../test")
+    ytdlp_proc = YtDlpProcess("https://www.youtube.com/watch?v=6uMNnZtIS6s", "test")
     class ExampleListener(YtDlpListener):
         @override
         def status_update(self, info: YtDlpInfo):
