@@ -3,7 +3,7 @@ from subprocess import Popen, PIPE
 from threading import Thread, Lock
 from time import sleep
 from dataclasses import dataclass
-from typing import override
+from typing import override, Self
 
 from util import dbg_print, not_blank, ensure_directory
 
@@ -20,6 +20,11 @@ class YtDlpInfo:
     rate_bytes_per_sec: int
     size_bytes: int
     eta_seconds: int
+    completed: bool
+
+    @staticmethod
+    def new(url: str) -> Self:
+        return YtDlpInfo(url, 0.0, 0, 0, 0, False)
 
 class YtDlpListener:
     def status_update(self, info: YtDlpInfo):
@@ -49,7 +54,7 @@ class YtDlpProcess:
         self.output_folder = output_folder
 
         self.data_lock = Lock()
-        self.ytdlp_info = None
+        self.ytdlp_info = YtDlpInfo.new(self.url)
         self.formats: list[tuple[str,str]] = []
         self.listeners: list[YtDlpListener] = []
 
@@ -89,7 +94,7 @@ class YtDlpProcess:
 
         # create the yt-dlp process
         with self.proc_lock:
-            ytdlp_args = ['yt-dlp', self.url, '-R', str(YtDlpProcess.MAX_RETRIES), '-f', vid_fmt] 
+            ytdlp_args = ['yt-dlp', self.url, '-R', str(YtDlpProcess.MAX_RETRIES), '-f', vid_fmt]
             if not_blank(self.output_folder):
                 ensure_directory(self.output_folder)
                 ytdlp_args += ['-o', f'{self.output_folder}/%(title)s.%(ext)s']
@@ -109,6 +114,8 @@ class YtDlpProcess:
 
         # determine RC and notify listeners of completion
         self.rc = self.process.poll()
+        with self.data_lock:
+            self.ytdlp_info.completed = True
         for listener in self.listeners:
             listener.completed(self.rc)
         self.download_thread = None
@@ -158,7 +165,8 @@ class YtDlpProcess:
                     progress=float(vid_match.group(1)),
                     size_bytes=YtDlpProcess.parse_byte_size(vid_match.group(2)),
                     rate_bytes_per_sec=YtDlpProcess.parse_byte_size(vid_match.group(3)),
-                    eta_seconds=YtDlpProcess.parse_seconds(vid_match.group(4))
+                    eta_seconds=YtDlpProcess.parse_seconds(vid_match.group(4)),
+                    completed=False
                 )
         
     def get_formats(self):
@@ -175,7 +183,6 @@ class YtDlpProcess:
     
     def get_rc(self):
         return self.rc
-
 
 if __name__ == '__main__':
     ytdlp_proc = YtDlpProcess("https://www.youtube.com/watch?v=6uMNnZtIS6s", "test")
