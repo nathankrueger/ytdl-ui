@@ -244,9 +244,9 @@ class MainWindow(QMainWindow):
         self.table.setSortingEnabled(True)
         self.table.customContextMenuRequested.connect(self.show_table_context_menu)
         self.table_model = YtDlTableModel()
-        sorting_model = YtDlSortModelProxy()
-        sorting_model.setSourceModel(self.table_model)
-        self.table.setModel(sorting_model)
+        self.sorting_model = YtDlSortModelProxy()
+        self.sorting_model.setSourceModel(self.table_model)
+        self.table.setModel(self.sorting_model)
         
         # download label
         self.download_dir_label = QLabel(text="Download Dir:")
@@ -307,7 +307,7 @@ class MainWindow(QMainWindow):
 
     def cancel_item(self, item):
         for row in self.table.selectionModel().selectedRows():
-            item = self.table_model.get_item(row.row())
+            item = self.table_model.get_item(self.sorting_model.mapToSource(row).row())
             item.proc.kill()
             self.table.selectionModel().select(row, QItemSelectionModel.SelectionFlag.Clear)
 

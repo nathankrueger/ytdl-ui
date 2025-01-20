@@ -148,7 +148,7 @@ class YtDlpProcess:
         if self.download_thread is None:
             self.cancelled = False
             self.rc = None
-            self.download_thread = Thread(target=self._download_func, args=[format], daemon=False).start()
+            self.download_thread = Thread(target=self._download_func, args=[format], daemon=True).start()
         else:
             raise Exception(f"Already downloading: {self.url}")
 
