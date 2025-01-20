@@ -23,7 +23,8 @@ from PyQt6.QtWidgets import (
     QTableView,
     QHeaderView,
     QMenu,
-    QSizePolicy
+    QSizePolicy,
+    QFileDialog
 )
 
 from ytdlp_process import YtDlpProcess, YtDlpInfo, YtDlpListener
@@ -233,7 +234,6 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("ytdl-ui")
-        self.grid_layout = QGridLayout()
 
         # downloads table
         self.table = QTableView(sizePolicy=EXPAND_ALL_POLICY)
@@ -261,6 +261,11 @@ class MainWindow(QMainWindow):
         # download directory textbox
         self.download_dir_textbox = get_one_line_textbox()
 
+        # choose directory button
+        self.choose_dir_btn = QPushButton(text="...")
+        self.choose_dir_btn.clicked.connect(self.choose_download_dir)
+        self.choose_dir_btn.setFixedWidth(50)
+
         # clear completed button
         self.clear_completed_btn = QPushButton(text="Clear Completed")
         self.clear_completed_btn.clicked.connect(self.table_model.clear_completed)
@@ -273,13 +278,15 @@ class MainWindow(QMainWindow):
         self.overall_stats_timer.start()
 
         # QGridLayout::addWidget(widget: QWidget, row: int, column: int, rowSpan: int, columnSpan: int, alignment: QtCore.Qt.AlignmentFlag)
+        self.grid_layout = QGridLayout()
         self.grid_layout.addWidget(self.download_dir_label, 0, 0)
         self.grid_layout.addWidget(self.download_dir_textbox, 0, 1)
+        self.grid_layout.addWidget(self.choose_dir_btn, 0, 2)
         self.grid_layout.addWidget(self.download_btn, 1, 0)
-        self.grid_layout.addWidget(self.url_textbox, 1, 1)
-        self.grid_layout.addWidget(self.table, 2, 0, 1, 2)
-        self.grid_layout.addWidget(self.clear_completed_btn, 3, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignRight)
-        self.grid_layout.addWidget(self.overall_stats_label, 4, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.grid_layout.addWidget(self.url_textbox, 1, 1, 1, 2)
+        self.grid_layout.addWidget(self.table, 2, 0, 1, 3)
+        self.grid_layout.addWidget(self.clear_completed_btn, 3, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignRight)
+        self.grid_layout.addWidget(self.overall_stats_label, 4, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignLeft)
 
         # create the top-level widget for the window frame
         widget = QWidget()
@@ -322,6 +329,11 @@ class MainWindow(QMainWindow):
         add_url = self.url_textbox.toPlainText()
         download_dir = self.download_dir_textbox.toPlainText()
         self.add_download(add_url, download_dir)
+
+    def choose_download_dir(self):
+        folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
+        if folder_path:
+            self.download_dir_textbox.setText(folder_path)
 
     def overall_stats_timer_callback(self):
         items = self.table_model.get_all_items()
