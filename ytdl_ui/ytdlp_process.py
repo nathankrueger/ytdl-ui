@@ -68,7 +68,7 @@ class YtDlpProcess:
             return int(float(s[:-3]) * 1024.0**1)
         elif s.endswith("B"):
             return int(float(s[:-1]) * 1024.0**0)
-        return None
+        return 0
 
     @staticmethod
     def parse_seconds(s: str) -> int | None:
@@ -81,7 +81,7 @@ class YtDlpProcess:
             case 3:
                 return (int(parts[0]) * 60**2) + (int(parts[1]) * 60**1) + (int(parts[0]) * 60**0)
             case _:
-                return None
+                return 0
 
     def _download_func(self, format: str = None):
         # determine what format to use
