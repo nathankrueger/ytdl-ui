@@ -1,9 +1,26 @@
 import os
+import platform
 
 DEBUG = 0
 def dbg_print(msg):
     if DEBUG:
         print(msg)
+
+def is_windows():
+    return os.name == 'nt'
+
+def is_wsl():
+    release: str = platform.release().lower()
+    return 'microsoft' in release and 'wsl' in release and not is_windows()
+
+def is_linux():
+    return not is_windows() and not is_wsl()
+
+def shutdown():
+    if is_windows() or is_wsl():
+        os.system('shutdown.exe /s /t 0')
+    elif is_linux():
+        os.system('shutdown -now')
 
 def is_blank(s: str | None) -> bool:
     if s is not None:

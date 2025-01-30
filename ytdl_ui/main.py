@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QPushButton,
     QTextEdit,
+    QCheckBox,
     QTableView,
     QHeaderView,
     QMenu,
@@ -34,7 +35,8 @@ from util import (
     not_blank,
     bytes_human_readable,
     bytes_per_sec_human_readable,
-    seconds_human_readable
+    seconds_human_readable,
+    shutdown,
 )
 
 CFG_FILE = 'cfg.json'
@@ -234,6 +236,39 @@ class YtDlTableModel(QAbstractTableModel):
         
         self.refresh_ui()
 
+class BlinkingRedCheckbox(QCheckBox):
+    def __init__(self, text, parent=None):
+        super().__init__(text, parent)
+        self.red_val = 0
+        self.count_up = True
+        self.timer = QTimer()
+        self.timer.setInterval(50)
+        self.timer.timeout.connect(self.timer_callback)
+        self.timer.start()
+
+    def timer_callback(self):
+        delta = 10
+        max_red_val = 255
+
+        if not self.checkState() == Qt.CheckState.Checked:
+            self.setStyleSheet('QCheckBox {color: black;}')
+            return
+        
+        if self.count_up:
+            if self.red_val + delta > max_red_val:
+                self.red_val = max_red_val
+                self.count_up = False
+            else:
+                self.red_val += delta
+        else:
+            if self.red_val - delta < 0:
+                self.red_val = 0
+                self.count_up = True
+            else:
+                self.red_val -= delta
+        
+        self.setStyleSheet(f"QCheckBox {{color: #{self.red_val:02x}0000;}}")
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -281,6 +316,9 @@ class MainWindow(QMainWindow):
         self.overall_stats_timer.timeout.connect(self.overall_stats_timer_callback)
         self.overall_stats_timer.start()
 
+        # shutdown upon completion
+        self.shutdown_checkbox = BlinkingRedCheckbox(text="Shutdown upon completion")
+
         # QGridLayout::addWidget(widget: QWidget, row: int, column: int, rowSpan: int, columnSpan: int, alignment: QtCore.Qt.AlignmentFlag)
         self.grid_layout = QGridLayout()
         self.grid_layout.addWidget(self.download_dir_label, 0, 0)
@@ -290,7 +328,8 @@ class MainWindow(QMainWindow):
         self.grid_layout.addWidget(self.url_textbox, 1, 1, 1, 2)
         self.grid_layout.addWidget(self.table, 2, 0, 1, 3)
         self.grid_layout.addWidget(self.clear_completed_btn, 3, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignRight)
-        self.grid_layout.addWidget(self.overall_stats_label, 4, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.grid_layout.addWidget(self.overall_stats_label, 4, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.grid_layout.addWidget(self.shutdown_checkbox, 4, 2, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
 
         # create the top-level widget for the window frame
         widget = QWidget()
@@ -340,11 +379,34 @@ class MainWindow(QMainWindow):
         if folder_path:
             self.download_dir_textbox.setText(folder_path)
 
+    def shutdown_if_all_completed(self):
+        # nothing to do if the shutdown checkbox isn't checked
+        if not self.shutdown_checkbox.checkState() == Qt.CheckState.Checked:
+            return
+
+        # if there are no items in the table, don't shutdown
+        items = self.table_model.get_all_items()
+        if len(items) < 1:
+            return
+
+        
+        # how many downloads are in progress?
+        num_active = 0
+        for item in items:
+            if not item.get_ytdl_info().completed:
+                num_active += 1
+
+        # if there are items, but all are complete, it's time to shutdown
+        if num_active == 0:
+            shutdown()
+
     def overall_stats_timer_callback(self):
         items = self.table_model.get_all_items()
         total_bytes_per_sec: float = 0.0
         total_active_downloads: int = 0
         eta_for_last_download: int = 0
+
+        self.shutdown_if_all_completed()
 
         for item in items:
             info = item.get_ytdl_info()
@@ -359,7 +421,7 @@ if __name__ == '__main__':
     try:
         app = QApplication(sys.argv)
         window = MainWindow()
-        window.resize(640, 480)
+        window.resize(800, 600)
 
         if os.path.exists(CFG_FILE):
             cfg: YtDlConfig = YtDlConfig.get_cfg(CFG_FILE)
