@@ -1,4 +1,5 @@
 import sys
+import os
 
 from typing import override, Callable
 from enum import Enum
@@ -27,6 +28,7 @@ from PyQt6.QtWidgets import (
     QFileDialog
 )
 
+from cfg_file import YtDlConfig
 from ytdlp_process import YtDlpProcess, YtDlpInfo, YtDlpListener
 from util import (
     not_blank,
@@ -34,6 +36,8 @@ from util import (
     bytes_per_sec_human_readable,
     seconds_human_readable
 )
+
+CFG_FILE = 'cfg.json'
 
 MIN_HEIGHT_POLICY = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 EXPAND_ALL_POLICY = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -329,6 +333,7 @@ class MainWindow(QMainWindow):
         add_url = self.url_textbox.toPlainText()
         download_dir = self.download_dir_textbox.toPlainText()
         self.add_download(add_url, download_dir)
+        self.url_textbox.setText(None)
 
     def choose_download_dir(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
@@ -350,11 +355,21 @@ class MainWindow(QMainWindow):
 
         self.overall_stats_label.setText(f"<h3>Overall Statistics</h3>\n  <b>Total Rate:</b> {bytes_per_sec_human_readable(total_bytes_per_sec)}\n  <b>ETA for last download:</b> {seconds_human_readable(eta_for_last_download)}\n  <b>Active Downloads:</b> {total_active_downloads}")
 
-app = QApplication(sys.argv)
-window = MainWindow()
-window.resize(640, 480)
-# window.add_download("https://www.youtube.com/watch?v=uGOLYz2pgr8", "")
-# window.add_download("https://www.youtube.com/shorts/s0dr3I9Xh0Y", "")
-# window.add_download("https://www.youtube.com/watch?v=kCc8FmEb1nY", "")
-window.show()
-app.exec()
+if __name__ == '__main__':
+    try:
+        app = QApplication(sys.argv)
+        window = MainWindow()
+        window.resize(640, 480)
+
+        if os.path.exists(CFG_FILE):
+            cfg: YtDlConfig = YtDlConfig.get_cfg(CFG_FILE)
+            if cfg.download_dir is not None:
+                window.download_dir_textbox.setText(cfg.download_dir)
+            if cfg.files is not None:
+                for file in cfg.files:
+                    window.add_download(file, window.download_dir_textbox.toPlainText())
+
+        window.show()
+        app.exec()
+    except Exception as e:
+        print(e)

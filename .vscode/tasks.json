@@ -1,0 +1,11 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "pytest",
+            "type": "shell",
+            "command": ".venv/bin/python -m pytest tests -s",
+            "problemMatcher": []
+        }
+    ]
+}

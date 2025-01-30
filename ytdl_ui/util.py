@@ -19,7 +19,9 @@ def ensure_directory(dir: str):
         os.makedirs(dir, exist_ok=True)
 
 def bytes_human_readable(bytes: int) -> str:
-    if bytes > 1024**4:
+    if bytes is None:
+        return ""
+    elif bytes > 1024**4:
         return f"{float(bytes) / float(1024**4):.3f} TB"
     elif bytes > 1024**3:
         return f"{float(bytes) / float(1024**3):.3f} GB"
@@ -28,15 +30,26 @@ def bytes_human_readable(bytes: int) -> str:
     elif bytes > 1024**1:
         return f"{float(bytes) / float(1024**1):.3f} KB"
     else:
-        return f"{float(bytes) / float(1024**0):.3f} B"
+        return f"{float(bytes) / float(1024**0):.0f} B"
 
 def bytes_per_sec_human_readable(bytes_per_sec: int) -> str:
-    return f"{bytes_human_readable(bytes_per_sec)}/s"
+    if bytes_per_sec is None:
+        return ""
+    else:
+        return f"{bytes_human_readable(bytes_per_sec)}/s"
 
 def seconds_human_readable(seconds: int) -> str:
+    if seconds is None:
+        return ""
     days, seconds = divmod(seconds, 86400)
     hours, seconds = divmod(seconds, 3600)
     minutes, seconds = divmod(seconds, 60)
+
+    days = int(days)
+    hours = int(hours)
+    minutes = int(minutes)
+    seconds = int(seconds)
+
     if days > 0:
         return f"{days:02}:{hours:02}:{minutes:02}:{seconds:02}"
     elif hours > 0:

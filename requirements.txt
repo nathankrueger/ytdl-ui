@@ -1,1 +1,3 @@
 pyqt6
+dataclasses_json
+pytest
