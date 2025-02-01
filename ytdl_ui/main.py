@@ -11,7 +11,10 @@ from PyQt6.QtCore import (
     QModelIndex,
     QItemSelectionModel,
     QSortFilterProxyModel,
-    QTimer
+    QTimer,
+    QObject,
+    QMetaObject,
+    pyqtSlot
 )
 from PyQt6.QtWidgets import (
     QApplication,
@@ -105,8 +108,9 @@ class YtDlColumn(Enum):
     def get_name(self) -> str:
         return self.name.upper()[0] + self.name.lower()[1:]
 
-class YtDlTableItem(YtDlpListener):
+class YtDlTableItem(YtDlpListener, QObject):
     def __init__(self, url: str, model_row: int, table_model, download_dir: str = None):
+        super(YtDlTableItem, self).__init__()
         self.url = url
         self.download_dir = download_dir
         self.proc: YtDlpProcess = YtDlpProcess(url, download_dir)
@@ -142,13 +146,17 @@ class YtDlTableItem(YtDlpListener):
             self.table_model.index(self.model_row, YtDlColumn.get_column_count() - 1)
         )
 
-    @override
-    def status_update(self, info: YtDlpInfo):
+    @pyqtSlot()
+    def update_slot(self):
         self.update_row_in_table_model()
 
     @override
+    def status_update(self, info: YtDlpInfo):
+        QMetaObject.invokeMethod(self, "update_slot", Qt.ConnectionType.QueuedConnection)
+
+    @override
     def completed(self, rc: int):
-        self.update_row_in_table_model()
+        QMetaObject.invokeMethod(self, "update_slot", Qt.ConnectionType.QueuedConnection)
 
 class YtDlSortModelProxy(QSortFilterProxyModel):
     @override
@@ -305,9 +313,8 @@ class MainWindow(QMainWindow):
         self.download_dir_textbox = get_one_line_textbox()
 
         # choose directory button
-        self.choose_dir_btn = QPushButton(text="...")
+        self.choose_dir_btn = QPushButton(text="Choose Directory ...")
         self.choose_dir_btn.clicked.connect(self.choose_download_dir)
-        self.choose_dir_btn.setFixedWidth(50)
 
         # clear completed button
         self.clear_completed_btn = QPushButton(text="Clear Completed")

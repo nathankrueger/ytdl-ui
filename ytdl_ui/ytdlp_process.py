@@ -1,5 +1,6 @@
 import re
 from subprocess import Popen, PIPE
+from copy import deepcopy
 from threading import Thread, Lock
 from time import sleep
 from dataclasses import dataclass
@@ -25,6 +26,9 @@ class YtDlpInfo:
     @staticmethod
     def new(url: str) -> Self:
         return YtDlpInfo(url, 0.0, 0, 0, 0, False)
+    
+    def clone(self):
+        return deepcopy(self)
 
 class YtDlpListener:
     def status_update(self, info: YtDlpInfo):
@@ -49,11 +53,12 @@ class YtDlpProcess:
         self.process: Popen = None
         self.proc_lock: Lock = Lock()
         self.cancelled: bool = False
-        self.rc: int = None
         self.download_thread = None
         self.output_folder = output_folder
 
+        # guards access to 'ytdlp_info', 'rc', 'listeners'
         self.data_lock = Lock()
+        self.rc: int = None
         self.ytdlp_info = YtDlpInfo.new(self.url)
         self.formats: list[tuple[str,str]] = []
         self.listeners: list[YtDlpListener] = []
@@ -110,7 +115,7 @@ class YtDlpProcess:
             else:
                 self.parse_output(output.strip())
                 if self.ytdlp_info is not None:
-                    self.notify_listeners_of_status()
+                    self.notify_listeners()
 
         # determine success of process
         self.rc = self.process.poll()
@@ -122,10 +127,8 @@ class YtDlpProcess:
             self.ytdlp_info.completed = True
             self.ytdlp_info.rate_bytes_per_sec = 0
             self.ytdlp_info.eta_seconds = 0
-
-        # notify listeners of completion
-        for listener in self.listeners:
-            listener.completed(self.rc)
+        
+        self.notify_listeners()
         self.download_thread = None
 
     def determine_formats(self):
@@ -144,13 +147,13 @@ class YtDlpProcess:
                         self.formats.append(split_line[0], line)
 
     def add_listener(self, listener: YtDlpListener):
-        self.listeners.append(listener)
+        with self.data_lock: self.listeners.append(listener)
 
     def remove_listener(self, listener: YtDlpListener):
-        self.listeners.remove(listener)
+        with self.data_lock: self.listeners.remove(listener)
 
     def get_info(self) -> YtDlpInfo:
-        return self.ytdlp_info
+        with self.data_lock: return self.ytdlp_info.clone()
 
     def download(self, format: str = None):
         if self.download_thread is None:
@@ -160,10 +163,13 @@ class YtDlpProcess:
         else:
             raise Exception(f"Already downloading: {self.url}")
 
-    def notify_listeners_of_status(self):
+    def notify_listeners(self):
         with self.data_lock:
             for listener in self.listeners:
-                listener.status_update(self.ytdlp_info)
+                if self.ytdlp_info.completed:
+                    listener.completed(self.rc)
+                else:
+                    listener.status_update(self.ytdlp_info)
 
     def parse_output(self, output: str):
         if (vid_match := re.search(r'\[download\]\s+(\d+\.\d+)%\s+of\s+~?\s+(\d+\.\d+(?:GiB|MiB|GiB|B))\s+at\s+(\d+\.\d+(?:GiB|MiB|KiB|B))\/s\s+ETA\s+([0-9:]+)', output)):
@@ -187,10 +193,10 @@ class YtDlpProcess:
                 self.process.kill()
 
     def is_complete(self):
-        return self.rc is not None
+        with self.data_lock: return self.rc is not None
     
     def get_rc(self):
-        return self.rc
+        with self.data_lock: return self.rc
 
 if __name__ == '__main__':
     ytdlp_proc = YtDlpProcess("https://www.youtube.com/watch?v=6uMNnZtIS6s", "test")
