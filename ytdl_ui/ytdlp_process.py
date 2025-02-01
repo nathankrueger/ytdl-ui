@@ -114,6 +114,8 @@ class YtDlpProcess:
 
         # determine RC and notify listeners of completion
         self.rc = self.process.poll()
+        if self.rc == 0:
+            self.ytdlp_info.progress = 100.0
         with self.data_lock:
             self.ytdlp_info.completed = True
         for listener in self.listeners:
@@ -158,7 +160,7 @@ class YtDlpProcess:
                 listener.status_update(self.ytdlp_info)
 
     def parse_output(self, output: str):
-        if (vid_match := re.search(r'\[download\]\s+(\d+\.\d+)%\s+of\s+(\d+\.\d+(?:GiB|MiB|GiB|B))\s+at\s+(\d+\.\d+(?:GiB|MiB|KiB|B))\/s\s+ETA\s+(.+)$', output)):
+        if (vid_match := re.search(r'\[download\]\s+(\d+\.\d+)%\s+of\s+~?\s+(\d+\.\d+(?:GiB|MiB|GiB|B))\s+at\s+(\d+\.\d+(?:GiB|MiB|KiB|B))\/s\s+ETA\s+([0-9:]+)', output)):
             with self.data_lock:
                 self.ytdlp_info = YtDlpInfo(
                     url=self.url,
