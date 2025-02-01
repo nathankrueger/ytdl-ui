@@ -241,16 +241,20 @@ class BlinkingRedCheckbox(QCheckBox):
         super().__init__(text, parent)
         self.red_val = 0
         self.count_up = True
+        self.enabled_cb = lambda: False
         self.timer = QTimer()
         self.timer.setInterval(50)
         self.timer.timeout.connect(self.timer_callback)
         self.timer.start()
 
+    def set_enabled_callback(self, enabled_callback: Callable[[], bool]):
+        self.enabled_cb = enabled_callback
+
     def timer_callback(self):
         delta = 10
         max_red_val = 255
 
-        if not self.checkState() == Qt.CheckState.Checked:
+        if (not self.checkState() == Qt.CheckState.Checked) or (not self.enabled_cb()):
             self.setStyleSheet('QCheckBox {color: black;}')
             return
         
@@ -318,6 +322,7 @@ class MainWindow(QMainWindow):
 
         # shutdown upon completion
         self.shutdown_checkbox = BlinkingRedCheckbox(text="Shutdown upon completion")
+        self.shutdown_checkbox.set_enabled_callback(lambda: len(self.table_model.get_all_items()) > 0)
 
         # QGridLayout::addWidget(widget: QWidget, row: int, column: int, rowSpan: int, columnSpan: int, alignment: QtCore.Qt.AlignmentFlag)
         self.grid_layout = QGridLayout()
