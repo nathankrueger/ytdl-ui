@@ -112,12 +112,18 @@ class YtDlpProcess:
                 if self.ytdlp_info is not None:
                     self.notify_listeners_of_status()
 
-        # determine RC and notify listeners of completion
+        # determine success of process
         self.rc = self.process.poll()
-        if self.rc == 0:
-            self.ytdlp_info.progress = 100.0
+
+        # set some details that may not get parsed above
         with self.data_lock:
+            if self.rc == 0:
+                self.ytdlp_info.progress = 100.0
             self.ytdlp_info.completed = True
+            self.ytdlp_info.rate_bytes_per_sec = 0
+            self.ytdlp_info.eta_seconds = 0
+
+        # notify listeners of completion
         for listener in self.listeners:
             listener.completed(self.rc)
         self.download_thread = None

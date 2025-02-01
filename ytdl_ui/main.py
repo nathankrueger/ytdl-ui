@@ -394,7 +394,6 @@ class MainWindow(QMainWindow):
         if len(items) < 1:
             return
 
-        
         # how many downloads are in progress?
         num_active = 0
         for item in items:
