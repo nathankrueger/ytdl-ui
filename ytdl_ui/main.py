@@ -115,6 +115,8 @@ class YtDlTableItem(YtDlpListener, QObject):
         self.download_dir = download_dir
         self.proc: YtDlpProcess = YtDlpProcess(url, download_dir)
         self.proc.add_listener(self)
+        self.info_cache = YtDlpInfo.new(url)
+        self.rc_cache = None
         self.model_row = model_row
         self.table_model = table_model
     
@@ -125,13 +127,13 @@ class YtDlTableItem(YtDlpListener, QObject):
         self.proc.download()
 
     def is_complete(self) -> bool:
-        return self.proc.is_complete()
+        return self.rc_cache is not None
     
     def get_rc(self) -> int | None:
-        return self.proc.get_rc()
+        return self.rc_cache
     
     def get_ytdl_info(self) -> YtDlpInfo:
-        return self.proc.get_info()
+        return self.info_cache
 
     def get_data_row(self) -> tuple:
         if (info := self.get_ytdl_info()) is not None:
@@ -150,13 +152,21 @@ class YtDlTableItem(YtDlpListener, QObject):
     def update_slot(self):
         self.update_row_in_table_model()
 
-    @override
-    def status_update(self, info: YtDlpInfo):
+    def update_on_ui_thread(self):
+        """
+        Queues 'update_slot()' to run on the UI thread, making this safe to call from background threads.
+        """
         QMetaObject.invokeMethod(self, "update_slot", Qt.ConnectionType.QueuedConnection)
 
     @override
+    def status_update(self, info: YtDlpInfo):
+        self.info_cache = info.clone()
+        self.update_on_ui_thread()
+
+    @override
     def completed(self, rc: int):
-        QMetaObject.invokeMethod(self, "update_slot", Qt.ConnectionType.QueuedConnection)
+        self.rc_cache = rc
+        self.update_on_ui_thread()
 
 class YtDlSortModelProxy(QSortFilterProxyModel):
     @override

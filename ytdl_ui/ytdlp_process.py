@@ -166,10 +166,9 @@ class YtDlpProcess:
     def notify_listeners(self):
         with self.data_lock:
             for listener in self.listeners:
+                listener.status_update(self.ytdlp_info)
                 if self.ytdlp_info.completed:
                     listener.completed(self.rc)
-                else:
-                    listener.status_update(self.ytdlp_info)
 
     def parse_output(self, output: str):
         if (vid_match := re.search(r'\[download\]\s+(\d+\.\d+)%\s+of\s+~?\s+(\d+\.\d+(?:GiB|MiB|GiB|B))\s+at\s+(\d+\.\d+(?:GiB|MiB|KiB|B))\/s\s+ETA\s+([0-9:]+)', output)):
