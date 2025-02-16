@@ -1,6 +1,7 @@
 import sys
 import os
 
+import pyperclip
 from typing import override, Callable
 from enum import Enum
 from PyQt6.QtGui import QFontMetrics, QBrush, QColor, QAction
@@ -11,10 +12,7 @@ from PyQt6.QtCore import (
     QModelIndex,
     QItemSelectionModel,
     QSortFilterProxyModel,
-    QTimer,
-    QObject,
-    QMetaObject,
-    pyqtSlot
+    QTimer
 )
 from PyQt6.QtWidgets import (
     QApplication,
@@ -360,9 +358,12 @@ class MainWindow(QMainWindow):
 
     def show_table_context_menu(self, pos):
         menu = QMenu(self)
-        action = QAction("Cancel", self)
-        action.triggered.connect(self.cancel_item)
-        menu.addAction(action)
+        cancel_action = QAction("Cancel", self)
+        cancel_action.triggered.connect(self.cancel_item)
+        copy_action = QAction("Copy URL", self)
+        copy_action.triggered.connect(self.copy_item)
+        menu.addAction(copy_action)
+        menu.addAction(cancel_action)
 
         # show the menu at the position of the right click
         menu.exec(self.table.mapToGlobal(pos))
@@ -372,6 +373,15 @@ class MainWindow(QMainWindow):
             item = self.table_model.get_item(self.sorting_model.mapToSource(row).row())
             item.kill()
             self.table.selectionModel().select(row, QItemSelectionModel.SelectionFlag.Clear)
+
+    def copy_item(self, item):
+        urls = []
+        for row in self.table.selectionModel().selectedRows():
+            item = self.table_model.get_item(self.sorting_model.mapToSource(row).row())
+            urls.append(item.url)
+
+        if len(urls) > 0:
+            pyperclip.copy("\n".join(urls))
 
     def add_download(self, url: str, download_dir: str):
         if not_blank(url):
