@@ -237,7 +237,7 @@ class YtDlpQThread(QThread, YtDlpListener):
                 self.condition.wait()
                 if self.rc != None:
                     self.completed_signal.emit(self.rc)
-                elif self.info != None:
+                if self.info != None:
                     self.status_update_signal.emit(self.info)
                 self.rc = None
                 self.info = None
