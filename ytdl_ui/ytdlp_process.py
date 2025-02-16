@@ -5,6 +5,8 @@ from threading import Thread, Lock
 from time import sleep
 from dataclasses import dataclass
 from typing import override, Self
+from PyQt6.QtCore import QThread, pyqtSignal
+from threading import Condition
 
 from util import dbg_print, not_blank, ensure_directory
 
@@ -196,6 +198,49 @@ class YtDlpProcess:
     
     def get_rc(self):
         with self.data_lock: return self.rc
+
+class YtDlpQThread(QThread, YtDlpListener):
+    status_update_signal = pyqtSignal(YtDlpInfo)
+    completed_signal = pyqtSignal(int)
+
+    def __init__(self, url: str, output_folder: str, parent=None):
+        super().__init__(parent)
+        self.proc = YtDlpProcess(url, output_folder)
+        self.proc.add_listener(self)
+        self.cancelled = False
+        self.condition = Condition()
+        self.rc = None
+        self.info = None
+
+    def download(self, format: str = None):
+        self.proc.download(format)
+
+    def kill(self):
+        self.proc.kill()
+
+    @override
+    def status_update(self, info: YtDlpInfo):
+        with self.condition:
+            self.info = info.clone()
+            self.condition.notify()
+
+    @override
+    def completed(self, rc: int):
+        with self.condition:
+            self.rc = rc
+            self.cancelled = True
+            self.condition.notify()
+
+    def run(self):
+        while not self.cancelled:
+            with self.condition:
+                self.condition.wait()
+                if self.rc != None:
+                    self.completed_signal.emit(self.rc)
+                elif self.info != None:
+                    self.status_update_signal.emit(self.info)
+                self.rc = None
+                self.info = None
 
 if __name__ == '__main__':
     ytdlp_proc = YtDlpProcess("https://www.youtube.com/watch?v=6uMNnZtIS6s", "test")

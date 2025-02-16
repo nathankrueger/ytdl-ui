@@ -33,7 +33,7 @@ from PyQt6.QtWidgets import (
 )
 
 from cfg_file import YtDlConfig
-from ytdlp_process import YtDlpProcess, YtDlpInfo, YtDlpListener
+from ytdlp_process import YtDlpQThread, YtDlpInfo, YtDlpListener
 from util import (
     not_blank,
     bytes_human_readable,
@@ -108,23 +108,25 @@ class YtDlColumn(Enum):
     def get_name(self) -> str:
         return self.name.upper()[0] + self.name.lower()[1:]
 
-class YtDlTableItem(YtDlpListener, QObject):
+class YtDlTableItem(YtDlpListener):
     def __init__(self, url: str, model_row: int, table_model, download_dir: str = None):
         super(YtDlTableItem, self).__init__()
         self.url = url
         self.download_dir = download_dir
-        self.proc: YtDlpProcess = YtDlpProcess(url, download_dir)
-        self.proc.add_listener(self)
+        self.qthread = YtDlpQThread(self.url, self.download_dir)
+        self.qthread.status_update_signal.connect(self.status_update)
+        self.qthread.completed_signal.connect(self.completed)
+        self.qthread.start()
         self.info_cache = YtDlpInfo.new(url)
         self.rc_cache = None
         self.model_row = model_row
         self.table_model = table_model
-    
-    def add_listener(self, listener: YtDlpListener):
-        self.proc.add_listener(listener)
 
     def download(self):
-        self.proc.download()
+        self.qthread.download()
+
+    def kill(self):
+        self.qthread.kill()
 
     def is_complete(self) -> bool:
         return self.rc_cache is not None
@@ -148,25 +150,13 @@ class YtDlTableItem(YtDlpListener, QObject):
             self.table_model.index(self.model_row, YtDlColumn.get_column_count() - 1)
         )
 
-    @pyqtSlot()
-    def update_slot(self):
-        self.update_row_in_table_model()
-
-    def update_on_ui_thread(self):
-        """
-        Queues 'update_slot()' to run on the UI thread, making this safe to call from background threads.
-        """
-        QMetaObject.invokeMethod(self, "update_slot", Qt.ConnectionType.QueuedConnection)
-
-    @override
     def status_update(self, info: YtDlpInfo):
         self.info_cache = info.clone()
-        self.update_on_ui_thread()
+        self.update_row_in_table_model()
 
-    @override
     def completed(self, rc: int):
         self.rc_cache = rc
-        self.update_on_ui_thread()
+        self.update_row_in_table_model()
 
 class YtDlSortModelProxy(QSortFilterProxyModel):
     @override
@@ -380,7 +370,7 @@ class MainWindow(QMainWindow):
     def cancel_item(self, item):
         for row in self.table.selectionModel().selectedRows():
             item = self.table_model.get_item(self.sorting_model.mapToSource(row).row())
-            item.proc.kill()
+            item.kill()
             self.table.selectionModel().select(row, QItemSelectionModel.SelectionFlag.Clear)
 
     def add_download(self, url: str, download_dir: str):
